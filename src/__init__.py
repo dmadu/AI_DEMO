@@ -1,17 +1,23 @@
 from flask import Flask
-from src.extensions import db, bcrypt
-from src.routes import api_bp
+from src.errors import register_error_handlers
 
 def create_app(config_name=None):
     app = Flask(__name__)
     
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgres@localhost:5432/app_db'
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SECRET_KEY'] = 'dev-secret-key'
+    # Register error handlers
+    register_error_handlers(app)
+    
+    @app.route('/')
+    def index():
+        return "Hello, World!"
 
-    db.init_app(app)
-    bcrypt.init_app(app)
+    @app.route('/error-500')
+    def trigger_error():
+        raise RuntimeError("Database connection failed")
 
-    app.register_blueprint(api_bp, url_prefix='/api')
+    @app.route('/error-400')
+    def trigger_validation_error():
+        from werkzeug.exceptions import BadRequest
+        raise BadRequest("Invalid request parameters")
 
     return app
