@@ -1,19 +1,25 @@
+import os
 from flask import Flask
-from app.extensions import db, pcrypt
-from app.routes import api_bp
+from flask_sqlalchemy import SQLAlchemy
+from flask_bcrypt import Bcrypt
+from flask_jwt_extended import JWTManager
+
+db = SQLAlchemy()
+bcrypt = Bcrypt()
+jwt = JWTManager()
 
 def create_app(config_name=None):
     app = Flask(__name__)
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
+    
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///app.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SECRET_KEY'] = 'dev-secret-key'
+    app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'super-secret-jwt-key')
 
     db.init_app(app)
-    pcrypt.init_app(app)
+    bcrypt.init_app(app)
+    jwt.init_app(app)
 
+    from app.routes import api_bp
     app.register_blueprint(api_bp)
-
-    with app.app_context():
-        db.create_all()
 
     return app

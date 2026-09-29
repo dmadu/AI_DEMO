@@ -1,62 +1,39 @@
-import re
 from flask import Blueprint, request, jsonify
-from app.extensions import db, pcrypt
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 from app.models import User
+from app import db
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
-EMAIL_REGEX = r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
-
-def validate_password(password):
-    if len(password) < 8:
-        return "Password must be at least 8 characters long."
-    if not re.search(r'[A-Z]', password):
-        return "Password must contain at least one uppercase letter."
-    if not re.search(r'[0-9]', password):
-        return "Password must contain at least one numeric digit."
-    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
-        return "Password must contain at least one special character."
-    return None
-
-@api_bp.route('/register', methods=['POST'])
-def register():
+@api_bp.route('/auth/login', methods=['POST'])
+def login():
     data = request.get_json()
     if not data:
-        return jsonify({"error": "Invalid JSON or missing request body"}), 400
+        return jsonify({"error": "Invalid input, JSON body required"}), 400
 
-    username = data.get('username')
-    email = data.get('email')
+    identifier = data.get('identifier') or data.get('username') or data.get('email')
     password = data.get('password')
 
-    if not username or not email or not password:
-        return jsonify({"error": "Missing required fields (username, email, password)"}), 400
+    if not identifier or not password:
+        return jsonify({"error": "Missing identifier (username or email) or password"}), 400
 
-    # Email validation
-    if not re.match(EMAIL_REGEX, email):
-        return jsonify({"error": "Invalid email format"}), 400
+    # Query user by username or email
+    user = User.query.filter((User.username == identifier) | (User.email == identifier)).first()
 
-    # Password complexity validation
-    pwd_error = validate_password(password)
-    if pwd_error:
-        return jsonify({"error": pwd_error}), 400
+    if user and user.check_password(password):
+        access_token = create_access_token(identity=str(user.id))
+        return jsonify({
+            "access_token": access_token,
+            "user": user.to_dict()
+        }), 200
 
-    # Unique constraints check
-    if User.query.filter_by(email=email).first():
-        return jsonify({"error": "Email already registered"}), 409
+    return jsonify({"error": "Invalid credentials"}), 401
 
-    if User.query.filter_by(username=username).first():
-        return jsonify({"error": "Username already taken"}), 409
-
-    # Hash password and persist
-    hashed_password = pcrypt.generate_password_hash(password).decode('utf-8')
-
-    new_user = User(
-        username=username,
-        email=email,
-        password_hash=hashed_password
-    )
-
-    db.session.add(new_user)
-    db.session.commit()
-
-    return jsonify(new_user.to_dict()), 201
+@api_bp.route('/protected', methods=['GET'])
+@jwt_required()
+def protected():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(int(current_user_id))
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+    return jsonify({"logged_in_as": user.username}), 200
