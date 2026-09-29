@@ -1,0 +1,61 @@
+{
+  "files": [
+    {
+      "path": "app/models/user.py",
+      "content": "import uuid\nfrom datetime import datetime\nfrom sqlalchemy import Column, String, DateTime, Enum as SQLEnum\nfrom sqlalchemy.dialects.postgresql import UUID\nfrom app.database import Base\n\nclass User(Base):\n    __tablename__ = \"users\"\n\n    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)\n    username = Column(String, unique=True, index=True, nullable=False)\n    email = Column(String, unique=True, index=True, nullable=False)\n    password_hash = Column(String, nullable=False)\n    role = Column(String, nullable=False, default=\"user\")\n    status = Column(String, nullable=False, default=\"active\")\n    timezone = Column(String, nullable=True, default=\"UTC\")\n    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)\n    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)\n\n    def __repr__(self):\n        return f\"<User(id={self.id}, username='{self.username}', email='{self.email}')>\"\n"
+    },
+    {
+      "path": "app/models/__init__.py",
+      "content": "from app.database import Base\nfrom app.models.user import User\n"
+    },
+    {
+      "path": "alembic/versions/001_create_users_table.py",
+      "content": "\"\"\"create users table
+
+Revision ID: 001_create_users_table
+Revises: 
+Create Date: 2025-02-18 00:00:00.000000
+
+\"\"\"
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+
+# revision identifiers, used by Alembic.
+revision = '001_create_users_table'
+down_revision = None
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    op.create_table(
+        'users',
+        sa.Column('id', postgresql.UUID(as_uuid=True), primary_key=True, nullable=False),
+        sa.Column('username', sa.String(), nullable=False),
+        sa.Column('email', sa.String(), nullable=False),
+        sa.Column('password_hash', sa.String(), nullable=False),
+        sa.Column('role', sa.String(), nullable=False),
+        sa.Column('status', sa.String(), nullable=False),
+        sa.Column('timezone', sa.String(), nullable=True),
+        sa.Column('created_at', sa.DateTime(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(), nullable=False)
+    )
+    op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
+    op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
+    op.create_index(op.f('ix_users_username'), 'users', ['username'], unique=True)
+
+
+def downgrade() -> None:
+    op.drop_index(op.f('ix_users_username'), table_name='users')
+    op.drop_index(op.f('ix_users_id'), table_name='users')
+    op.drop_index(op.f('ix_users_email'), table_name='users')
+    op.drop_table('users')
+"
+    },
+    {
+      "path": "tests/test_user_model.py",
+      "content": "import pytest\nfrom sqlalchemy.exc import IntegrityError\nfrom app.models.user import User\n\ndef test_create_user(db_session):\n    user = User(\n        username=\"testuser\",\n        email=\"test@example.com\",\n        password_hash=\"hashed_secret\",\n        role=\"user\",\n        status=\"active\",\n        timezone=\"UTC\"\n    )\n    db_session.add(user)\n    db_session.commit()\n\n    retrieved = db_session.query(User).filter_by(username=\"testuser\").first()\n    assert retrieved is not None\n    assert retrieved.id is not None\n    assert retrieved.username == \"testuser\"\n    assert retrieved.email == \"test@example.com\"\n    assert retrieved.password_hash == \"hashed_secret\"\n    assert retrieved.role == \"user\"\n    assert retrieved.status == \"active\"\n    assert retrieved.timezone == \"UTC\"\n    assert retrieved.created_at is not None\n    assert retrieved.updated_at is not None\n\ndef test_unique_username_constraint(db_session):\n    user1 = User(\n        username=\"duplicate\",\n        email=\"user1@example.com\",\n        password_hash=\"hash1\",\n        role=\"user\",\n        status=\"active\"\n    )\n    db_session.add(user1)\n    db_session.commit()\n\n    user2 = User(\n        username=\"duplicate\",\n        email=\"user2@example.com\",\n        password_hash=\"hash2\",\n        role=\"user\",\n        status=\"active\"\n    )\n    db_session.add(user2)\n    with pytest.raises(IntegrityError):\n        db_session.commit()\n    db_session.rollback()\n\ndef test_unique_email_constraint(db_session):\n    user1 = User(\n        username=\"user1\",\n        email=\"same@example.com\",\n        password_hash=\"hash1\",\n        role=\"user\",\n        status=\"active\"\n    )\n    db_session.add(user1)\n    db_session.commit()\n\n    user2 = User(\n        username=\"user2\",\n        email=\"same@example.com\",\n        password_hash=\"hash2\",\n        role=\"user\",\n        status=\"active\"\n    )\n    db_session.add(user2)\n    with pytest.raises(IntegrityError):\n        db_session.commit()\n    db_session.rollback()\n\ndef test_nullable_constraints(db_session):\n    # Missing mandatory username\n    user = User(\n        email=\"noname@example.com\",\n        password_hash=\"hash\",\n        role=\"user\",\n        status=\"active\"\n    )\n    db_session.add(user)\n    with pytest.raises(IntegrityError):\n        db_session.commit()\n    db_session.rollback()\n"
+    }
+  ]
+}
