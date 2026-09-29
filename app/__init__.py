@@ -1,24 +1,19 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
-from flask_bcrypt import Bcrypt
+from flask_jwt_extended import JWTManager
+from config import Config
 
 db = SQLAlchemy()
-bcrypt = Bcrypt()
+jwt = JWTManager()
 
-def create_app(config_name=None):
+def create_app(config_class=Config):
     app = Flask(__name__)
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SECRET_KEY'] = 'dev-secret-key'
+    app.config.from_object(config_class)
 
     db.init_app(app)
-    bcrypt.init_app(app)
+    jwt.init_app(app)
 
-    from app.models import User
-    from app.routes import auth_bp
-    app.register_blueprint(auth_bp)
-
-    with app.app_context():
-        db.create_all()
+    from app.routes import main_bp
+    app.register_blueprint(main_bp)
 
     return app
