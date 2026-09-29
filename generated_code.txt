@@ -1,0 +1,20 @@
+{
+  "files": [
+    {
+      "path": "app/models/user.py",
+      "content": "from sqlalchemy import Column, Integer, String, DateTime\nfrom sqlalchemy.sql import func\nfrom app.database import Base\n\nclass User(Base):\n    __tablename__ = \"users\"\n\n    id = Column(Integer, primary_key=True, index=True, autoincrement=True)\n    username = Column(String, unique=True, index=True, nullable=False)\n    email = Column(String, unique=True, index=True, nullable=False)\n    password_hash = Column(String, nullable=False)\n    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)\n    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)\n"
+    },
+    {
+      "path": "app/models/__init__.py",
+      "content": "from app.models.user import User\n"
+    },
+    {
+      "path": "alembic/versions/001_create_users_table.py",
+      \"content": "\"\"create users table\n\nRevision ID: 001\nRevises: \nCreate Date: 2026-03-30 00:00:00.000000\n\n\"\"\"\nfrom alembic import op\nimport sqlalchemy as sa\n\n\n# revision identifiers, used by Alembic.\nrevision = '001'\ndown_revision = None\nbranch_labels = None\ndepends_on = None\n\n\ndef upgrade() -> None:\n    op.create_table(\n        'users',\n        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),\n        sa.Column('username', sa.String(), nullable=False),\n        sa.Column('email', sa.String(), nullable=False),\n        sa.Column('password_hash', sa.String(), nullable=False),\n        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),\n        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),\n        sa.PrimaryKeyConstraint('id')\n    )\n    op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)\n    op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)\n    op.create_index(op.f('ix_users_username'), 'users', ['username'], unique=True)\n\n\ndef downgrade() -> None:\n    op.drop_index(op.f('ix_users_username'), table_name='users')\n    op.drop_index(op.f('ix_users_id'), table_name='users')\n    op.drop_index(op.f('ix_users_email'), table_name='users')\n    op.drop_table('users')\n"
+    },
+    {
+      "path": "tests/test_user_model.py",
+      "content": "import pytest\nfrom sqlalchemy.exc import IntegrityError\nfrom app.models.user import User\n\ndef test_create_user(db_session):\n    user = User(\n        username=\"testuser\",\n        email=\"test@example.com\",\n        password_hash=\"hashed_secret_password\"\n    )\n    db_session.add(user)\n    db_session.commit()\n    db_session.refresh(user)\n\n    assert user.id is not None\n    assert user.username == \"testuser\"\n    assert user.email == \"test@example.com\"\n    assert user.password_hash == \"hashed_secret_password\"\n    assert user.created_at is not None\n\ndef test_duplicate_username_constraint(db_session):\n    user1 = User(\n        username=\"duplicate_user\",\n        email=\"user1@example.com\",\n        password_hash=\"hash\"\n    )\n    db_session.add(user1)\n    db_session.commit()\n\n    user2 = User(\n        username=\"duplicate_user\",\n        email=\"user2@example.com\",\n        password_hash=\"hash\"\n    )\n    db_session.add(user2)\n    with pytest.raises(IntegrityError):\n        db_session.commit()\n    db_session.rollback()\n\ndef test_duplicate_email_constraint(db_session):\n    user1 = User(\n        username=\"user1\",\n        email=\"same@example.com\",\n        password_hash=\"hash\"\n    )\n    db_session.add(user1)\n    db_session.commit()\n\n    user2 = User(\n        username=\"user2\",\n        email=\"same@example.com\",\n        password_hash=\"hash\"\n    )\n    db_session.add(user2)\n    with pytest.raises(IntegrityError):\n        db_session.commit()\n    db_session.rollback()\n"
+    }
+  ]
+}
